@@ -1,0 +1,24 @@
+{
+  "channel": "C080RU90E01",
+  "thread_ts": "{{issue.customfield_10039}}",
+  "text": "Comment added to {{issue.key}} by {{comment.author.displayName}}: {{comment.body}}", 
+  "blocks": [
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "A comment has been added to <{{issue.url}}|{{issue.key}}>, by {{comment.author.displayName}}"
+      }
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "{{comment.body}}"
+      }
+    }
+  ]
+}

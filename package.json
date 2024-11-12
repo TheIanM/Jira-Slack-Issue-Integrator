@@ -1,0 +1,44 @@
+{
+  "name": "jira-slack-issue-integrator",
+  "version": "1.0.0",
+  "description": "This slack app connects Jira issues to a channel in Slack and threads updates and comments when added to jira.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TheIanM/Jira-Slack-Issue-Integrator.git"
+  },
+  "keywords": [
+    "Jira",
+    "Slack",
+    "app",
+    "Slack",
+    "Bolt",
+    "Issue",
+    "tracker"
+  ],
+  "author": "Ian M.",
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/TheIanM/Jira-Slack-Issue-Integrator/issues"
+  },
+  "homepage": "https://github.com/TheIanM/Jira-Slack-Issue-Integrator#readme",
+  "dependencies": {
+    "@slack/bolt": "^4.1.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "eslint": "^9.14.0",
+    "ngrok": "^5.0.0-beta.2",
+    "nodemon": "^3.1.7"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
