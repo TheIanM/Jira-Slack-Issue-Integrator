@@ -40,7 +40,7 @@ if (result.error) {
 console.log('\nLoaded environment variables:');
 Object.keys(process.env).forEach(key => {
     if (key.startsWith('SLACK_') || key.startsWith('JIRA_')) {
-        console.log(`${key}=${key.includes('TOKEN') || key.includes('SECRET') ? '<hidden>' : process.env[key]}`);
+        console.log(`${key}=${key.includes('TOKEN') || key.includes('SECRET') || key.includes('EMAIL') || key.includes('WEBHOOK')'<hidden>' : process.env[key]}`);
     }
 });
 
