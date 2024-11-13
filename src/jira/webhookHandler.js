@@ -5,185 +5,154 @@ const { postMessage, postThreadReply } = require('../slack/messages');
 const { formatNewIssue, formatIssueUpdate, formatComment } = require('../slack/format');
 
 /**
- * Handles incoming webhooks from both Jira and Slack-formatted payloads
+ * Webhook handler for both Jira and Slack-formatted events
  */
-class JiraWebhookHandler {
+class WebhookHandler {
   constructor(app, threadFieldId) {
     this.app = app;
     this.threadFieldId = threadFieldId;
   }
 
   /**
-   * Determines if payload is in Slack format
-   * @param {Object} payload - The webhook payload
-   * @returns {boolean} True if payload is Slack formatted
+   * Determine if payload is Slack-formatted
    */
-  isSlackFormatted(payload) {
-    return payload.hasOwnProperty('channel') && 
-           payload.hasOwnProperty('blocks');
+  isSlackPayload(payload) {
+    return payload?.channel && payload?.blocks;
   }
 
   /**
-   * Processes a Slack-formatted payload
-   * @param {Object} payload - Slack formatted payload
+   * Handle Slack-formatted payload (used for comments)
    */
   async handleSlackPayload(payload) {
     try {
-      // Extract thread_ts if it exists (for replies)
-      const threadTs = payload.thread_ts || null;
-      
-      // Post message or reply
+      const threadTs = payload.thread_ts;
       if (threadTs) {
         await postThreadReply(this.app, payload.text, threadTs);
+        console.log('Posted reply to thread:', threadTs);
       } else {
         await postMessage(this.app, payload.text);
+        console.log('Posted new message');
       }
-      
-      console.log('Processed Slack-formatted payload successfully');
     } catch (error) {
-      console.error('Error processing Slack payload:', error);
+      console.error('Failed to handle Slack payload:', error);
       throw error;
     }
   }
 
   /**
-   * Get update message based on event type and data
-   * @param {string} eventType - The issue event type name
-   * @param {Object} issue - The issue object from webhook
-   * @returns {string} Formatted message
+   * Handle a new issue being created
    */
-  getUpdateMessage(eventType, issue) {
-    switch (eventType) {
-      case 'issue_assigned':
-        const assignee = issue.fields.assignee ? 
-          issue.fields.assignee.displayName : 
-          'Unassigned';
-        return `👤 [${issue.key}] Issue assigned to ${assignee}`;
-        
-      case 'issue_generic':
-      case 'issue_updated':
-        // Handle general updates (status, priority, etc.)
-        const changes = [];
-        if (issue.fields.status) {
-          changes.push(`Status: ${issue.fields.status.name}`);
-        }
-        if (issue.fields.priority) {
-          changes.push(`Priority: ${issue.fields.priority.name}`);
-        }
-        return changes.length > 0 ?
-          `📝 [${issue.key}] Updated\n${changes.join('\n')}` :
-          `📝 [${issue.key}] Issue updated`;
-
-      default:
-        return `📝 [${issue.key}] Issue updated (${eventType})`;
+  async handleNewIssue(issue) {
+    try {
+      const message = formatNewIssue(issue);
+      const threadId = await postMessage(this.app, message);
+      await jiraClient.storeThreadId(issue.key, threadId, this.threadFieldId);
+      console.log(`Created Slack thread ${threadId} for issue ${issue.key}`);
+    } catch (error) {
+      console.error(`Failed to handle new issue ${issue.key}:`, error);
+      throw error;
     }
   }
 
   /**
-   * Main handler for incoming webhooks
-   * @param {Object} req - Express request object
-   * @param {Object} res - Express response object
+   * Handle an issue being updated
+   */
+  async handleIssueUpdate(issue, changelog) {
+    try {
+      // Skip if this is just the thread ID being stored
+      if (changelog?.items?.length === 1 && 
+          changelog.items[0].fieldId === this.threadFieldId) {
+        return;
+      }
+
+      const updatedIssue = await jiraClient.getIssue(issue.key);
+      const threadId = updatedIssue.fields[this.threadFieldId];
+      
+      if (!threadId) {
+        console.log(`No thread found for issue ${issue.key}`);
+        return;
+      }
+
+      const message = formatIssueUpdate(null, updatedIssue);
+      await postThreadReply(this.app, message, threadId);
+      console.log(`Posted update to thread ${threadId} for issue ${issue.key}`);
+    } catch (error) {
+      console.error(`Failed to handle update for issue ${issue.key}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Handle a new comment being added
+   */
+  async handleNewComment(issue, comment) {
+    try {
+      const updatedIssue = await jiraClient.getIssue(issue.key);
+      const threadId = updatedIssue.fields[this.threadFieldId];
+
+      if (!threadId) {
+        console.log(`No thread found for issue ${issue.key}`);
+        return;
+      }
+
+      const message = formatComment(comment, issue.key);
+      await postThreadReply(this.app, message, threadId);
+      console.log(`Posted comment to thread ${threadId} for issue ${issue.key}`);
+    } catch (error) {
+      console.error(`Failed to handle comment for issue ${issue.key}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Main webhook handler - routes Jira events and Slack payloads
    */
   async handleWebhook(req, res) {
     try {
-      // Debug: Log the entire request body
-      console.log('Received webhook payload:', JSON.stringify(req.body, null, 2));
-      
-      if (!req.body) {
-        console.log('No request body received');
+      const payload = req.body;
+
+      // Handle missing payload
+      if (!payload) {
+        console.log('No payload received');
         return res.status(400).send('No payload received');
       }
 
-      // Determine payload format and handle accordingly
-      if (this.isSlackFormatted(req.body)) {
-        console.log('Processing Slack-formatted payload');
-        await this.handleSlackPayload(req.body);
+      // Log webhook receipt
+      console.log('Received webhook payload type:', 
+        this.isSlackPayload(payload) ? 'Slack' : payload.webhookEvent);
+
+      // Route based on payload type
+      if (this.isSlackPayload(payload)) {
+        await this.handleSlackPayload(payload);
         return res.status(200).send('Slack payload processed');
       }
 
-      // Handle Jira-formatted payload
-      const { webhookEvent, issue, comment } = req.body;
-
-      // Debug: Log the parsed event
-      console.log('Processing Jira webhook event:', webhookEvent);
-      console.log('Event type:', req.body.issue_event_type_name);
+      // Handle Jira events
+      const { webhookEvent, issue, comment, changelog } = payload;
 
       switch (webhookEvent) {
         case 'jira:issue_created':
-          await this.handleIssueCreated(issue);
+          await this.handleNewIssue(issue);
           break;
 
         case 'jira:issue_updated':
-          await this.handleIssueUpdated(issue, req.body.issue_event_type_name);
+          await this.handleIssueUpdate(issue, changelog);
           break;
 
         case 'comment_created':
-          await this.handleCommentCreated(issue, comment);
+          await this.handleNewComment(issue, comment);
           break;
 
         default:
-          console.log(`Unhandled webhook event: ${webhookEvent}`);
+          console.log(`Ignoring unhandled webhook event: ${webhookEvent}`);
       }
 
       res.status(200).send('OK');
     } catch (error) {
-      console.error('Error processing webhook:', error);
-      console.error('Full error:', error.stack);
+      console.error('Webhook handling failed:', error);
       res.status(500).send('Internal Server Error');
     }
   }
-
-  /**
-   * Handle issue creation events
-   * @param {Object} issue - Issue data from webhook
-   */
-  async handleIssueCreated(issue) {
-    const message = formatNewIssue(issue);
-    const threadId = await postMessage(this.app, message);
-    await jiraClient.storeThreadId(issue.key, threadId, this.threadFieldId);
-    console.log(`Created Slack thread ${threadId} for issue ${issue.key}`);
-  }
-
-  /**
-   * Handle issue update events
-   * @param {Object} issue - Issue data from webhook
-   * @param {string} eventType - Type of update event
-   */
-  async handleIssueUpdated(issue, eventType) {
-    console.log('Processing issue update:', eventType);
-    
-    const updatedIssue = await jiraClient.getIssue(issue.key);
-    const threadId = updatedIssue.fields[this.threadFieldId];
-
-    if (!threadId) {
-      console.log(`No thread ID found for issue ${issue.key}`);
-      return;
-    }
-
-    const updateMessage = this.getUpdateMessage(eventType, updatedIssue);
-    await postThreadReply(this.app, updateMessage, threadId);
-    
-    console.log(`Posted update to thread ${threadId} for issue ${issue.key}`);
-  }
-
-  /**
-   * Handle comment creation events
-   * @param {Object} issue - Issue data from webhook
-   * @param {Object} comment - Comment data
-   */
-  async handleCommentCreated(issue, comment) {
-    const updatedIssue = await jiraClient.getIssue(issue.key);
-    const threadId = updatedIssue.fields[this.threadFieldId];
-
-    if (!threadId) {
-      console.log(`No thread ID found for issue ${issue.key}`);
-      return;
-    }
-
-    const commentMessage = formatComment(comment, issue.key);
-    await postThreadReply(this.app, commentMessage, threadId);
-    console.log(`Posted comment to thread ${threadId} for issue ${issue.key}`);
-  }
 }
 
-module.exports = JiraWebhookHandler;
+module.exports = WebhookHandler;
