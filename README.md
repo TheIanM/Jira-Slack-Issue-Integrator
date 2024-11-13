@@ -21,12 +21,13 @@ The idea is to keep everyone in the loop without leaving Slack!
 
 ### Step 1: Slack Setup
 1. Go to [api.slack.com/apps](https://api.slack.com/apps)
-2. Click "Create New App" → "From scratch"
+2. Click "Create New App" → "From scratch"or use manifest in /examples/
 3. Name your app and select your workspace
 4. Under "Basic Information", note down:
    - Signing Secret
    - Bot User OAuth Token (You'll need to install the app to your workspace first)
-5. Under "Event Subscriptions":
+5. OPTIONAL (for future expansion to sync from slack to Jira)
+ Under "Event Subscriptions":
    - Enable events (you'll add the URL after setting up the app)
    - Subscribe to bot events: `message.channels`
 6. Getting your Channel ID:
@@ -52,7 +53,7 @@ SLACK_BOT_TOKEN=xoxb-your-token
 SLACK_SIGNING_SECRET=your-signing-secret
 SLACK_CHANNEL_ID=C0123ABCD  # The ID from the channel URL
 JIRA_API_TOKEN=your-api-token
-JIRA_DOMAIN=your-domain      # Just the subdomain part (e.g., "yourcompany" though I did put in some logic so that even if you put the whole thing in it will still work!)
+JIRA_DOMAIN=your-domain      # Just the subdomain part (e.g., "yourcompany") 
 JIRA_EMAIL=your-jira-email
 JIRA_THREAD_FIELD_ID=customfield_10039
 ```

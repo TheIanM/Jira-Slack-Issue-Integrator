@@ -1,0 +1,27 @@
+{
+    "display_information": {
+        "name": "Jira issue integrator",
+        "description": "jira issues in slack and then thread their comments and status changes.",
+        "background_color": "#007a52",
+        "long_description": "This Slack app is built to view jira issues in slack and then thread their comments and status changes. This is built in node with minimal dependencies using slack's bolt for JS."
+    },
+    "features": {
+        "bot_user": {
+            "display_name": "Jira issue integrator",
+            "always_online": false
+        }
+    },
+    "oauth_config": {
+        "scopes": {
+            "bot": [
+                "channels:history",
+                "chat:write"
+            ]
+        }
+    },
+    "settings": {
+        "org_deploy_enabled": false,
+        "socket_mode_enabled": false,
+        "token_rotation_enabled": false
+    }
+}
